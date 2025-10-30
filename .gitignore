@@ -54,6 +54,8 @@ Plugins/RuntimeMeshLoader/Binaries/Win64/UE4Editor.modules
 !Plugins/Controlysis/Source/ThirdParty/**/*.pdb
 
 ### .gitignore was copiend from SC_Platform, IDK how this really works so here's my own .gitignore ###
-Binaries/**
-Intermediate/**
-Saved/**
+Binaries/
+Intermediate/
+Saved/
+.vs/
+/*.txt
