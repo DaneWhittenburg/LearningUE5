@@ -1,48 +1,43 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "test_actor.h"
-#include "UObject/ConstructorHelpers.h" // Allows
-#include "Engine/Engine.h"
+#include "PlanetActor.h"
+#include "TimelineNode.h"
 
 // Sets default values
-Atest_actor::Atest_actor()
+APlanetActor::APlanetActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	actor_mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Actor's Mesh Component"));
-
+	RootComponent = actor_mesh;
 	// Pulls the MeshAsset to be assigned
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 
 	if (MeshAsset.Succeeded())
 	{
 		actor_mesh->SetStaticMesh(MeshAsset.Object);
 	}
-	// Attaches the capability for the actor to hold a static mesh
-	RootComponent = actor_mesh;
-
 	// Enables interactive capability
 	actor_mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	actor_mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	// This must be true for all click-based events, except drag functions apparently
 	actor_mesh->SetGenerateOverlapEvents(false);
+
+	// Allows the mesh to be moved
+	actor_mesh->SetMobility(EComponentMobility::Movable);
 }
 
 // Called when the game starts or when spawned
-void Atest_actor::BeginPlay()
+void APlanetActor::BeginPlay()
 {
 	// This should be placed at the beginning of every BeginPlay() section
 	Super::BeginPlay();
-	UE_LOG(LogTemp, Log, TEXT("Calling Actor BeginPlay"));
-
-	InitPos = GetActorLocation();
-	InitRot = GetActorRotation();	
 }
 
 // Called every frame
-void Atest_actor::Tick(float DeltaTime)
+void APlanetActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	TickCount++;
@@ -50,10 +45,28 @@ void Atest_actor::Tick(float DeltaTime)
 	// Here set the optino to how you want the actor to move
 	// Option 0: Doesn't Move
 	// Option 1: Linearly
-	// Option 2: Circularly
-	// Option 3: Circularly Differently
+	// Option 2: Circularly about a point
+	// Option 3: Circularly Dfrom it's current position
+
+	// Storing Position Every second to spawn timeline nodes
+	if (TickCount % NodeDecimation == 2)
+	{
+		NodeData.Add(GetActorLocation().X);
+		NodeData.Add(GetActorLocation().Y);
+		NodeData.Add(GetActorLocation().Z);
+		NodeData.Add(GetActorRotation().Pitch);
+		NodeData.Add(GetActorRotation().Yaw);
+		NodeData.Add(GetActorRotation().Roll);
+
+		for (int i = 0; i < NodeData.Num(); i++)
+		{
+			UE_LOG(LogTemp, Log, TEXT("NodeData[%d]: %f"), i, NodeData[i]);
+		}	
+		UE_LOG(LogTemp, Log, TEXT(""));
+	}
 
 	CurPos = GetActorLocation();
+	CurRot = GetActorRotation();
 	if (MoveOption == 0)
 	{
 		MoveOption = 0; // Doesn't Move
@@ -67,7 +80,7 @@ void Atest_actor::Tick(float DeltaTime)
 	}
 	else if(MoveOption == 2) // Circular Movement
 	{
-		float Radius = 1000.0f * Scalable;
+		float Radius = 1000.0f * RadiusScale;
 
 		// Calculates angle of circular movement based on time elapsed
 		float Angle =  FMath::DegreesToRadians(FMath::Fmod(TotalTime, 360.0f)) * MoveSpeed;
@@ -87,7 +100,7 @@ void Atest_actor::Tick(float DeltaTime)
 	}
 	else if (MoveOption == 3) // Alternative to calculating circular movement
 	{
-		float Angle = FMath::DegreesToRadians(FMath::Fmod(TotalTime, 360.0f))* 60;
+		float Angle = FMath::DegreesToRadians(FMath::Fmod(TotalTime, 360.0f)) * 60;
 
 		// Instead of pre-calculating circular movement, alters direction to be driven
 		Direction = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0);
@@ -100,10 +113,34 @@ void Atest_actor::Tick(float DeltaTime)
 		motion from that point on*/
 		
 	}
+	else if (MoveOption == 4) // Elliptical Orbit Movement mimicking the Moon-Earth Relationship assuming Earth is at the origin
+	{
+		UE_LOG(LogTemp, Log, TEXT(""));
+	}
+	
+	if (Pregnant)
+	{
+		// Spawn TimelineNode babies here
+		// UE_LOG(LogTemp, Log, TEXT("Pregnant TickCount: %int"), TickCount);
+		if (TickCount % NodeDecimation == 2)
+		{
+			ATimelineNode* NewBaby = GetWorld()->SpawnActor<ATimelineNode>(CurPos, CurRot);
+			NewBaby->actor_mesh->SetStaticMesh(actor_mesh->GetStaticMesh());
+			NewBaby->SpawnConditions(actor_mesh->GetComponentScale().X);
+			NewBaby->OpacityValue = 0.5f; // Makes the timeline nodes semi-transparent
+		}
+	}
+	else
+	{
+		// Destroy TimelineNode babies here
+		// UE_LOG(LogTemp, Log, TEXT("Not Pregnant TickCount: %int"), TickCount);
+	}
 	// Below is a much easier way
 	// AddActorWorldOffset(DeltaMovement);
-
-	// Below here is just logging
 }
 
-
+void APlanetActor::SpawnConditions(float MeshRadius, int MoveOption_0)
+{
+	actor_mesh->SetWorldScale3D(FVector(MeshRadius, MeshRadius, MeshRadius));
+	this->MoveOption = MoveOption_0;
+}
